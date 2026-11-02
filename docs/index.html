@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ru" data-s="mini">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShyFlow — Dynamic Island для Windows</title>
+<meta name="description" content="Живой остров вверху экрана Windows: музыка, слова песен, уведомления, карман для файлов. Бесплатно.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="icon.png">
+<style>
+/* размеры и пружина острова — те же, что в приложении (MainWindow.xaml, ApplyMode, K=190 ζ=.7) */
+:root{--spring:linear(0.000,0.033,0.117,0.229,0.353,0.478,0.596,0.701,0.792,0.866,0.925,0.970,1.002,1.024,1.037,1.044,1.046,1.044,1.040,1.035,1.030,1.024,1.018,1.014,1.009,1.006,1.003,1.001,1.000,0.999,0.998,1.000);--t:.62s;--dim:#ffffff99;--w:190px;--h:38px;--r:19px}
+[data-s=full]{--w:400px;--h:230px;--r:38px}
+[data-s=notif]{--w:340px;--h:76px;--r:30px}
+[data-s=pocket]{--w:440px;--h:206px;--r:30px}
+[data-s=actions]{--w:440px;--h:215px;--r:30px}
+[data-s=get]{--w:300px;--h:50px;--r:25px}
+*{box-sizing:border-box;margin:0}
+html{background:#101012;color:#fff;font:18px/1.45 "Segoe UI Variable Display","Segoe UI Variable",-apple-system,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.wall{position:fixed;inset:0;overflow:hidden;z-index:-1}
+.wall i{position:absolute;left:50%;top:60%;width:150vmax;height:150vmax;margin:-75vmax;border-radius:50%;background:conic-gradient(from 20deg,#101012,#3b3b40,#101012 30%,#55555c,#17171a 58%,#2c2c30,#101012 80%,#46464c,#101012);filter:blur(70px);will-change:transform;animation:spin 70s linear infinite}
+@keyframes spin{to{transform:rotate(360deg) scale(1.1,.85)}}
+#top{position:fixed;inset:0 0 auto;height:0;z-index:9}
+.shape{position:fixed;inset:0 0 auto;height:260px;background:#000;pointer-events:none;clip-path:inset(8px calc(50% - min(var(--w),94vw)/2) calc(100% - 8px - var(--h)) round var(--r));transition:clip-path var(--t) var(--spring);filter:none}
+.bar{position:fixed;top:44px;left:50%;width:calc(min(var(--w),94vw) - 32px);height:2px;margin-left:calc((min(var(--w),94vw) - 32px)/-2);pointer-events:none;overflow:hidden;opacity:0;transition:opacity .2s;border-radius:0 0 19px 19px}
+[data-s=mini] .bar,[data-s=timer] .bar{opacity:1}
+.bar i{display:block;height:100%;background:#ffffff99;transform-origin:left;transform:scaleX(.2)}
+.bub{position:fixed;top:8px;left:50%;height:38px;width:92px;margin-left:-46px;border-radius:19px;background:#000;display:flex;align-items:center;justify-content:center;gap:5px;color:#FF9F0A;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;opacity:0;transform:translateX(0) scale(.6);transition:opacity .2s,transform var(--t) var(--spring)}
+[data-s=timer] .bub{opacity:1;transform:translateX(149px)}
+.v{position:fixed;top:8px;left:50%;width:min(var(--vw),94vw);height:var(--vh);margin-left:calc(min(var(--vw),94vw)/-2);padding:var(--p,0);opacity:0;pointer-events:none;transform:scale(.9) translateY(-8px);transition:opacity .16s,transform var(--t) var(--spring)}
+[data-s=mini] .mini,[data-s=timer] .mini,[data-s=full] .full,[data-s=notif] .notif,[data-s=pocket] .pocket,[data-s=actions] .actions,[data-s=get] .get{opacity:1;transform:none;pointer-events:auto;transition-delay:.09s}
+.mini{--vw:190px;--vh:38px;--p:0 14px 0 8px;display:flex;align-items:center;width:min(190px,94vw);text-align:left;font-size:13px;font-weight:500;white-space:nowrap}
+.mini span:nth-child(2){flex:1;margin:0 10px;overflow:hidden;text-overflow:ellipsis}
+.cover{flex:none;width:24px;height:24px;border-radius:12px;background:conic-gradient(from 210deg at 35% 30%,#ff7a59,#c0398f,#3a2c9b,#ffb36b,#ff7a59)}
+.eq{display:flex;align-items:center;gap:2.5px;height:18px}
+.eq i{width:3px;height:100%;border-radius:2px;background:#fff;animation:eq .7s ease-in-out infinite alternate}
+.eq i:nth-child(2){animation-delay:-.25s}.eq i:nth-child(3){animation-delay:-.5s}.eq i:nth-child(4){animation-delay:-.1s}
+.paused .eq i{animation-play-state:paused}
+@keyframes eq{from{transform:scaleY(.25)}}
+.full{--vw:400px;--vh:230px;--p:18px}
+.head{display:flex;align-items:center;gap:14px}
+.head .cover{width:64px;height:64px;border-radius:14px}
+.head b{display:block;font-size:17px;font-weight:600;line-height:1.25}
+.head span{font-size:15px;color:#EBEBF599}
+.head .eq{margin:0 6px 0 auto}
+.lyr{height:44px;margin-top:8px;overflow:hidden;font-size:15px;font-weight:600;line-height:22px}
+.lyr div{animation:roll 12s var(--spring) infinite}
+.lyr p{height:22px;opacity:.35;animation:lit 12s infinite}
+.lyr p:nth-child(2){animation-delay:3s}.lyr p:nth-child(3){animation-delay:6s}.lyr p:nth-child(4){animation-delay:9s}
+@keyframes roll{0%,22%{transform:none}25%,47%{transform:translateY(-22px)}50%,72%{transform:translateY(-44px)}75%,97%{transform:translateY(-22px)}}
+@keyframes lit{0%,23%{opacity:1}26%,100%{opacity:.35}}
+.paused .lyr *,.paused .fill{animation-play-state:paused}
+.seek{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.track{flex:1;height:5px;border-radius:3px;background:#78788066;overflow:hidden}
+.fill{height:100%;background:#fff;border-radius:3px;transform-origin:left;animation:fill 150s linear infinite}
+@keyframes fill{from{transform:scaleX(.2)}}
+.ctl{display:flex;justify-content:center;font-size:17px}
+.ctl button{width:46px;height:30px;display:grid;place-items:center;border-radius:15px;transition:transform .4s var(--spring)}
+.ctl button:hover{background:#ffffff14}.ctl button:active{transform:scale(.85)}
+.ctl svg{fill:currentColor}.ctl .play svg{font-size:24px}
+.notif{--vw:340px;--vh:76px;--p:0 18px 0 12px;display:flex;align-items:center;gap:12px}
+.ic{flex:none;width:44px;height:44px;border-radius:13px;background:#fff;color:#000;display:grid;place-items:center;font-size:15px;font-weight:700}
+.nt{flex:1;min-width:0;line-height:1.25}
+.nt div{display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:#ffffff80}
+.nt b{display:block;font-size:14px;font-weight:600}
+.nt span{display:block;font-size:12.5px;color:#ffffffb0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pocket{--vw:440px;--vh:206px;--p:12px 16px}
+.tabs{position:relative;display:inline-flex;height:32px;padding:2px;border-radius:16px;background:#ffffff14;font-size:12.5px;font-weight:600}
+.tabs::before{content:"";position:absolute;left:2px;top:2px;bottom:2px;width:94px;border-radius:14px;background:#ffffff2e;transform:translateX(calc(var(--tab,0)*94px));transition:transform var(--t) var(--spring)}
+.tabs button{position:relative;width:94px}
+.cards{display:flex;gap:8px;margin-top:10px;overflow:hidden}
+.cards div{flex:none;width:92px;height:136px;border-radius:16px;background:#ffffff14;padding:10px;display:flex;flex-direction:column;justify-content:flex-end;font-size:12px;font-weight:600;overflow:hidden;overflow-wrap:anywhere;animation:pop var(--t) var(--spring)}
+.cards .w{width:168px;justify-content:flex-start;font-weight:400;color:#ffffffd0}
+.cards small{display:block;font-size:11px;font-weight:400;color:var(--dim)}
+.cards svg{font-size:26px;margin-bottom:auto;stroke-width:1.5}
+@keyframes pop{from{opacity:0;transform:scale(.8)}}
+.actions{--vw:440px;--vh:215px;--p:14px 14px 0}
+.actions>b{display:block;font-size:14px;font-weight:600;margin:0 0 6px 6px}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.tile{position:relative;height:70.5px;margin:4px;border-radius:16px;background:#ffffff1a;text-align:left;transition:transform .45s var(--spring),background .15s}
+.tile:hover{background:#ffffff2c}.tile:active{transform:scale(.93)}
+.tile i{position:absolute;left:9px;top:8px;width:28px;height:28px;border-radius:14px;background:#ffffff26;display:grid;place-items:center;font-size:14px;transition:background .2s,color .2s}
+.tile.on i{background:#fff;color:#1c1c1e}
+.tile span{position:absolute;left:10px;right:6px;bottom:7px;font-size:11.5px;font-weight:600;line-height:13.5px}
+.get{--vw:300px;--vh:50px;--p:0 6px 0 9px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;white-space:nowrap}
+.get img{width:32px}
+.get a{margin-left:auto;background:#fff;color:#000;text-decoration:none;padding:9px 18px;border-radius:19px;transition:transform .45s var(--spring)}
+.get a:hover{transform:scale(1.05,.97)}.get a:active{transform:scale(.92)}
+#brand{position:fixed;left:16px;top:10px;z-index:8;display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;text-decoration:none}
+#brand img{width:34px}
+#lang{position:fixed;right:16px;top:12px;z-index:8;font-size:13px;font-weight:600;background:#ffffff1a;border-radius:99px;padding:8px 13px;transition:transform .45s var(--spring)}
+#lang:active{transform:scale(.85)}
+.taskbar{position:fixed;inset:auto 0 0;height:48px;z-index:7;display:flex;align-items:center;justify-content:center;gap:6px;background:#1c1c20cc;backdrop-filter:blur(30px);border-top:1px solid #ffffff12}
+.taskbar img,.taskbar i{width:26px;height:26px;margin:0 5px}
+.taskbar i{border-radius:7px;background:#ffffff26}
+.taskbar i:first-child{background:linear-gradient(135deg,#fff,#999);border-radius:4px}
+.taskbar time{position:absolute;right:16px;font-size:12px;text-align:right;line-height:1.3}
+main{position:relative}
+section{min-height:100svh;display:flex;flex-direction:column;justify-content:center;width:min(1160px,100% - 32px);margin:auto;padding:280px 0 110px}
+h1,h2{font-size:clamp(36px,min(10.5vw,17vh),140px);line-height:.94;letter-spacing:-.05em;font-weight:700;text-wrap:balance;overflow-wrap:anywhere}
+section:first-of-type{padding-top:110px}
+section p{font-size:clamp(18px,2.2vw,25px);color:var(--dim);max-width:640px;margin-top:22px;letter-spacing:-.01em}
+.c{align-items:center;text-align:center}.r{align-items:flex-end;text-align:right}
+.hint{font-size:15px;margin-top:14px;color:#ffffff66}
+.cta{display:inline-block;margin-top:30px;padding:16px 30px;background:#fff;color:#000;border-radius:24px;font-weight:600;text-decoration:none;transition:transform .6s var(--spring)}
+.cta:hover{transform:scale(1.06,.96)}.cta:active{transform:scale(.92)}
+.big{width:clamp(110px,16vw,170px);margin-bottom:30px;filter:drop-shadow(0 20px 50px #fff3)}
+.note{font-size:15px}
+footer{width:min(1160px,100% - 32px);margin:auto;padding:0 0 84px;color:var(--dim);font-size:15px;display:flex;flex-wrap:wrap;justify-content:center;gap:8px 22px}
+@supports(animation-timeline:scroll()){.bar i{animation:prog linear both;animation-timeline:scroll(root)}
+@keyframes prog{from{transform:scaleX(.02)}to{transform:none}}
+section>*{animation:rise linear both;animation-timeline:view();animation-range:entry 15% cover 45%}
+section:first-of-type>*,section:last-of-type>*{animation-range:entry 0% entry 50%}
+@keyframes rise{from{opacity:0;transform:translateY(80px) scale(.94,1.05)}}}
+@media(max-width:760px){#brand span{display:none}#brand{display:none}#lang{top:auto;bottom:60px}.taskbar time{display:none}section{padding-top:270px}[data-s=timer] .bub{transform:translateX(min(149px,50vw - 50px))}.mini{--vw:190px}[data-s=timer]{--w:150px}[data-s=timer] .mini{width:150px;margin-left:calc(-50vw + 8px);left:50%}[data-s=timer] .shape{clip-path:inset(8px calc(100% - 158px) calc(100% - 46px) 8px round 19px)}[data-s=timer] .bar{display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01s!important}}
+</style>
+<svg style="display:none"><defs>
+<symbol id="camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+<symbol id="moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="vol" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></symbol>
+<symbol id="glass" viewBox="0 0 24 24"><path d="M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"/></symbol>
+<symbol id="mix" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4"/></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2L5.8 21 7 14.2 2 9.3l6.9-1z"/></symbol>
+<symbol id="zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"/></symbol>
+<symbol id="timer" viewBox="0 0 24 24"><path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/></symbol>
+<symbol id="prev" viewBox="0 0 24 24"><path d="M19 20 9 12l10-8zM5 19V5"/></symbol>
+<symbol id="next" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8zM19 5v14"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M6 3l14 9-14 9z"/></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></symbol>
+</defs></svg>
+<div class="wall"><i></i></div>
+<a id="brand" href="#"><img src="icon.png" alt=""><span>ShyFlow</span></a>
+<button id="lang">EN</button>
+<div id="top">
+  <div class="shape"></div>
+  <div class="bub"><svg><use href="#timer"/></svg><span id="clock">04:59</span></div>
+  <button class="v mini" id="open" aria-label="Открыть плеер"><span class="cover"></span><span data-en="Midnight Drive">Ночной город</span><span class="eq"><i></i><i></i><i></i><i></i></span></button>
+  <div class="bar"><i></i></div>
+  <div class="v full"><div class="head" id="close"><span class="cover"></span><div><b data-en="Midnight Drive">Ночной город</b><span data-en="Night Lines">Ночные линии</span></div><span class="eq"><i></i><i></i><i></i><i></i></span></div>
+    <div class="lyr"><div><p data-en="Lights are passing by">Мимо летят огни</p><p data-en="The whole city's asleep">Город уже уснул</p><p data-en="Only you and the sound">Только ты и звук</p><p data-en="The whole city's asleep">Город уже уснул</p></div></div>
+    <div class="seek"><span>0:42</span><div class="track"><div class="fill"></div></div><span>3:21</span></div>
+    <div class="ctl"><button aria-label="Назад"><svg><use href="#prev"/></svg></button><button class="play" id="pp" aria-label="Пауза"><svg><use href="#pause"/></svg></button><button aria-label="Вперёд"><svg><use href="#next"/></svg></button></div></div>
+  <div class="v notif"><span class="ic" data-en="S">С</span><div class="nt"><div><span data-en="Messages">Сообщения</span><span data-en="now">сейчас</span></div><b data-en="Sasha">Саша</b><span data-en="Are you coming tonight?">Ты сегодня придёшь?</span></div></div>
+  <div class="v pocket"><div class="tabs" id="tabs"><button data-en="Files">Файлы</button><button data-en="Clipboard">Буфер</button><button data-en="Notes">Заметки</button></div><div class="cards" id="cards"></div></div>
+  <div class="v actions"><b data-en="Quick actions">Быстрые действия</b><div class="tiles" id="tiles"></div></div>
+  <div class="v get"><img src="icon.png" alt=""><span>ShyFlow <span id="ver2"></span></span><a href="https://github.com/Sh1ziy/ShyFlow/releases/latest/download/ShyFlow-Setup.exe" data-en="Download">Скачать</a></div>
+</div>
+<main>
+<section class="c" data-s="mini"><h1 data-en="Your Windows just came alive.">Твой Windows только что ожил.</h1><p data-en="This is the real ShyFlow island, up there at the top. Click it, then scroll.">Вверху настоящий остров ShyFlow. Нажми на него, а потом прокрути вниз.</p><a class="cta" href="https://github.com/Sh1ziy/ShyFlow/releases/latest/download/ShyFlow-Setup.exe" data-en="Download for Windows">Скачать для Windows</a></section>
+<section data-s="full"><h2 data-en="Every word, right on beat.">Каждое слово точно в такт.</h2><p data-en="Player and synced lyrics right in the island. Pause it, it works.">Плеер и слова песни прямо в острове. Нажми на паузу, она работает.</p></section>
+<section class="r" data-s="notif"><h2 data-en="Notifications that don't get in the way.">Уведомления не мешают.</h2><p data-en="They flow out of the island and disappear. History is one click away.">Появляются из острова и исчезают сами. История всегда в один клик.</p></section>
+<section data-s="pocket"><h2 data-en="A pocket for everything.">Карман для всего.</h2><p data-en="Drop files on the island, keep clipboard history and notes. Try the tabs.">Кидай файлы на остров, держи историю буфера и заметки. Попробуй вкладки.</p></section>
+<section class="r" data-s="actions"><h2 data-en="Everything without windows.">Всё без лишних окон.</h2><p data-en="Pin the actions you need. Tap the tiles: toggles really switch.">Закрепи нужные действия. Понажимай плитки: переключатели работают.</p></section>
+<section class="c" data-s="timer"><h2 data-en="And a bubble alongside.">И пузырь рядом.</h2><p data-en="A timer or a call lives next to the island and leaves it free. No accounts, no ads, no analytics.">Таймер или звонок живут рядом с островом и не занимают его. Без аккаунтов, рекламы и аналитики.</p></section>
+<section class="c" data-s="get"><img class="big" src="icon.png" alt="ShyFlow"><h2 data-en="Yours. For free.">Твой. Бесплатно.</h2><p data-en="Windows 10 (2004+) and 11. Nothing else to install.">Windows 10 (2004+) и 11. Больше ничего ставить не нужно.</p><p class="note" data-en="Have 3.9.7 or older? Install once over the old version: settings stay and updates work again. If Windows warns you: “More info”, then “Run anyway”.">Стоит 3.9.7 или старше? Один раз поставь поверх: настройки сохранятся, обновления снова заработают. Если Windows предупредит: «Подробнее», затем «Выполнить в любом случае».</p></section>
+</main>
+<footer><a href="https://github.com/Sh1ziy/ShyFlow">GitHub</a><a href="https://github.com/Sh1ziy/ShyFlow/releases" data-en="Releases">Релизы</a><a href="https://github.com/Sh1ziy/ShyFlow/blob/main/Package/PRIVACY.md" data-en="Privacy">Конфиденциальность</a><a href="https://github.com/Sh1ziy/ShyFlow/issues" data-en="Support">Поддержка</a></footer>
+<div class="taskbar"><i></i><i></i><img src="icon.png" alt=""><i></i><i></i><time id="now"></time></div>
+<script>
+const $=q=>document.querySelector(q),H=document.documentElement,ic=n=>`<svg><use href="#${n}"/></svg>`;
+const T={ru:{f:['photo.png','report.pdf','music.zip','notes.txt'],s:['2,4 МБ','840 КБ','12 МБ','3 КБ'],c:['Купить билеты на пятницу','https://github.com/Sh1ziy/ShyFlow'],n:['Не забыть ключи','Созвон в 19:00'],t:['Скриншот','Тёмная тема','Без звука','Таймер','Микшер','Коллекция','Фокус','Ещё']},
+en:{f:['photo.png','report.pdf','music.zip','notes.txt'],s:['2.4 MB','840 KB','12 MB','3 KB'],c:['Buy tickets for Friday','https://github.com/Sh1ziy/ShyFlow'],n:["Don't forget the keys",'Call at 7 pm'],t:['Screenshot','Dark theme','Mute','Timer','Mixer','Collection','Focus','More']}};
+const IC=['camera','moon','vol','glass','mix','star','zap','grid'],on=new Set([1]);let tab=0;
+const cards=()=>{const t=T[H.lang];$('#cards').innerHTML=tab==0?t.f.map((f,i)=>`<div>${ic('file')}${f}<small>${t.s[i]}</small></div>`).join(''):(tab==1?t.c:t.n).map(x=>`<div class="w">${x}</div>`).join('')};
+const tiles=()=>{$('#tiles').innerHTML=T[H.lang].t.map((x,i)=>`<button class="tile${on.has(i)?' on':''}" data-i="${i}"><i>${ic(IC[i])}</i><span>${x}</span></button>`).join('')};
+$('#tiles').onclick=e=>{const b=e.target.closest('.tile');if(!b||+b.dataset.i>2&&b.dataset.i!=6)return;const i=+b.dataset.i;on.has(i)?on.delete(i):on.add(i);b.classList.toggle('on')};
+[...$('#tabs').children].forEach((b,i)=>b.onclick=()=>{tab=i;$('#tabs').style.setProperty('--tab',i);cards()});
+$('#open').onclick=()=>H.dataset.s='full';$('#close').onclick=()=>H.dataset.s='mini';
+$('#pp').onclick=()=>{const p=H.classList.toggle('paused');$('#pp use').setAttribute('href',p?'#play':'#pause')};
+const els=[...document.querySelectorAll('[data-en]')];els.forEach(e=>e.dataset.ru=e.textContent);
+const set=l=>{H.lang=l;els.forEach(e=>e.textContent=e.dataset[l]);$('#lang').textContent=l=='ru'?'EN':'RU';cards();tiles();try{localStorage.lang=l}catch{}};
+$('#lang').onclick=()=>{const go=()=>set(H.lang=='ru'?'en':'ru');document.startViewTransition?document.startViewTransition(go).ready.catch(()=>{}):go()};
+let saved;try{saved=localStorage.lang}catch{}
+set(saved||(navigator.language.startsWith('ru')?'ru':'en'));
+const io=new IntersectionObserver(a=>a.forEach(e=>{if(e.isIntersecting)H.dataset.s=e.target.dataset.s}),{rootMargin:'-50% 0px'});
+document.querySelectorAll('section').forEach(s=>io.observe(s));
+let left=299;const tick=()=>{const d=new Date;$('#now').innerHTML=d.toLocaleTimeString(H.lang,{hour:'2-digit',minute:'2-digit'})+'<br>'+d.toLocaleDateString(H.lang);if(H.dataset.s=='timer'){left=left?left-1:299;$('#clock').textContent=String(left/60|0).padStart(2,'0')+':'+String(left%60).padStart(2,'0')}};tick();setInterval(tick,1e3);
+fetch('https://api.github.com/repos/Sh1ziy/ShyFlow/releases/latest').then(r=>r.json()).then(r=>{if(r.tag_name)$('#ver2').textContent=r.tag_name}).catch(()=>{});
+</script>
+</html>
