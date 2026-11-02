@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ShyFlow</AssemblyName>
+    <ApplicationIcon>ShyFlow.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>ShyFlow</Product>
+    <Title>ShyFlow</Title>
+    <Description>ShyFlow</Description>
+    <Authors>ShyFlow</Authors>
+    <Company>ShyFlow</Company>
+    <Copyright>ShyFlow</Copyright>
+    <RootNamespace>Island</RootNamespace>
+    <Version>3.9.8</Version>
+    <AssemblyVersion>3.9.8.0</AssemblyVersion>
+    <FileVersion>3.9.8.0</FileVersion>
+    <!-- шаг 80: .NET едет вместе с ShyFlow; переводы сообщений самого .NET/WPF берём только русские и английские (меньше установщик) -->
+    <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="ShyFlow.ico" />
+    <Resource Include="ShyFlow.png" />
+    <!-- 3.9.4: Inter и Inter Display (SIL OFL, Fonts/Inter-OFL.txt) — шрифт по умолчанию, Ui/UiFonts.cs -->
+    <Resource Include="Fonts/*.ttf" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+    <PackageReference Include="System.Management" Version="10.0.13" />
+  </ItemGroup>
+</Project>
